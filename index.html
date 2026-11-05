@@ -1,0 +1,736 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="PLT — Parietal Lobe Trainer: тренировка визуализации через сенсорное замещение «изображение → звук».">
+<title>PLT — Parietal Lobe Trainer</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23000'/%3E%3Cpath d='M14 46 L32 16 L50 46 Z' fill='none' stroke='%23fff' stroke-width='4' stroke-linejoin='round'/%3E%3Crect x='38' y='8' width='4' height='48' fill='%234fd1c5'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#0a0c0f;--panel:#12161b;--panel2:#181d23;--line:#252c35;
+  --text:#e7ecf1;--muted:#8b97a4;--accent:#4fd1c5;--accent-ink:#04201d;
+  --good:#5fd38a;--warn:#f0b35a;--bad:#ef6f6c;--radius:14px;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);
+  font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+  -webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+body{min-height:100vh;min-height:100dvh}
+.app{max-width:640px;margin:0 auto;
+  padding:max(14px,env(safe-area-inset-top)) 16px max(28px,env(safe-area-inset-bottom))}
+header .brand{display:flex;gap:12px;align-items:center}
+.logo{font-weight:800;letter-spacing:.06em;background:var(--accent);color:var(--accent-ink);
+  border-radius:10px;padding:8px 10px;font-size:15px;flex:none}
+h1{font-size:18px;margin:0;font-weight:700}
+.sub{margin:2px 0 0;color:var(--muted);font-size:13px}
+
+.stage{position:relative;width:min(100%,60vh,560px);aspect-ratio:1/1;margin:16px auto 0;
+  background:#000;border:1px solid var(--line);border-radius:18px;overflow:hidden;
+  box-shadow:0 0 0 6px #0e1216,0 24px 60px rgba(0,0,0,.55)}
+@supports not (aspect-ratio:1/1){.stage{height:min(92vw,60vh,560px)}}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:6px;pointer-events:none;text-align:center;padding:16px}
+.count{font-size:min(30vw,170px);font-weight:200;line-height:1;font-variant-numeric:tabular-nums}
+.hint{color:var(--muted);font-size:15px}
+.hint.big{font-size:22px;color:var(--text);font-weight:600}
+.tag{position:absolute;left:10px;bottom:10px;max-width:calc(100% - 20px);padding:5px 11px;border-radius:999px;
+  background:rgba(18,22,27,.88);border:1px solid var(--line);font-size:13px;
+  opacity:0;transition:opacity .2s;pointer-events:none}
+.tag.show{opacity:1}
+.status{text-align:center;color:var(--muted);margin:12px 0 0;min-height:1.45em;font-size:14px}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-top:12px}
+.level-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.level-head label{font-weight:600}
+.level-head output{color:var(--accent);font-weight:600;text-align:right}
+input[type=range]{width:100%;accent-color:var(--accent);height:30px;margin:6px 0 0;touch-action:pan-y}
+.ticks{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);padding:0 6px}
+.level-desc{color:var(--muted);font-size:13px;margin:8px 0 0;min-height:2.9em}
+.mini{color:var(--muted);font-size:12px;margin-top:6px}
+
+.actions{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+.btn{appearance:none;border:1px solid var(--line);background:var(--panel2);color:var(--text);
+  font:inherit;font-weight:600;padding:13px 16px;border-radius:12px;cursor:pointer;flex:1 1 140px;
+  min-height:50px;touch-action:manipulation;transition:transform .05s,background .15s}
+.btn:active{transform:scale(.98)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.btn.danger{color:var(--bad)}
+.btn:disabled{opacity:.4;cursor:default}
+.btn:focus-visible,.chip:focus-visible,summary:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.q{margin:0 0 10px;font-size:14px;color:var(--muted)}
+.chips{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.chip{appearance:none;font:inherit;font-size:14px;font-weight:600;color:var(--text);background:var(--panel2);
+  border:1px solid var(--line);border-radius:10px;padding:11px 4px;cursor:pointer;touch-action:manipulation}
+.chip[aria-pressed=true][data-r=match]{background:rgba(95,211,138,.14);border-color:var(--good);color:var(--good)}
+.chip[aria-pressed=true][data-r=partial]{background:rgba(240,179,90,.14);border-color:var(--warn);color:var(--warn)}
+.chip[aria-pressed=true][data-r=miss]{background:rgba(239,111,108,.14);border-color:var(--bad);color:var(--bad)}
+.linkbtn{appearance:none;background:none;border:0;color:var(--muted);font:inherit;font-size:14px;
+  margin-top:12px;cursor:pointer;text-decoration:underline;text-underline-offset:3px;padding:4px}
+.hidden{display:none!important}
+
+details.card{padding:0}
+summary{cursor:pointer;font-weight:600;padding:15px 16px;list-style:none;display:flex;justify-content:space-between}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"＋";color:var(--muted)}
+details[open] summary::after{content:"－"}
+.body{padding:0 16px 16px}
+.row{display:grid;grid-template-columns:1fr auto;gap:0 12px;align-items:center;margin:10px 0 4px}
+.row label{font-size:14px}
+.row output{font-size:14px;color:var(--accent);font-variant-numeric:tabular-nums}
+.row input{grid-column:1/-1}
+.toggle{display:flex;gap:12px;align-items:center;padding:9px 0;font-size:14px;cursor:pointer}
+.toggle input{width:20px;height:20px;accent-color:var(--accent);flex:none}
+.sep{border:0;border-top:1px solid var(--line);margin:12px 0}
+table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:7px 4px;text-align:right;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--muted);font-weight:500}
+.prose{font-size:14px;color:#c9d2db}
+.prose p{margin:0 0 10px}
+.prose b{color:var(--text)}
+footer{color:var(--muted);font-size:12px;text-align:center;margin-top:18px}
+footer a{color:var(--muted)}
+kbd{font:12px ui-monospace,monospace;border:1px solid var(--line);border-radius:5px;padding:1px 5px;background:var(--panel2)}
+@media (min-width:900px){ .app{max-width:680px} }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <span class="logo">PLT</span>
+      <div>
+        <h1>Parietal Lobe Trainer</h1>
+        <p class="sub">Визуализация через сенсорное замещение «изображение → звук»</p>
+      </div>
+    </div>
+  </header>
+
+  <section>
+    <div class="stage" id="stage">
+      <canvas id="cv" aria-label="Окно сканирования фигуры"></canvas>
+      <div class="overlay"><div class="count" id="count"></div><div class="hint" id="hint"></div></div>
+      <div class="tag" id="tag"></div>
+    </div>
+    <div class="status" id="status" aria-live="polite"></div>
+  </section>
+
+  <section class="card">
+    <div class="level-head">
+      <label for="level">Сложность</label>
+      <output id="levelOut"></output>
+    </div>
+    <input type="range" id="level" min="1" max="10" step="1">
+    <div class="ticks"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span></div>
+    <p class="level-desc" id="levelDesc"></p>
+
+    <div id="actIdle" class="actions">
+      <button class="btn primary" id="btnStart">Начать</button>
+      <button class="btn" id="btnDemo">Демо (глаза открыты)</button>
+    </div>
+
+    <div id="actRun" class="actions hidden">
+      <button class="btn danger" id="btnStop">Стоп</button>
+    </div>
+
+    <div id="actReview" class="hidden">
+      <div id="rateBox">
+        <p class="q">Насколько совпало с тем, что вы представили?</p>
+        <div class="chips">
+          <button class="chip" data-r="match" aria-pressed="false">Совпало</button>
+          <button class="chip" data-r="partial" aria-pressed="false">Частично</button>
+          <button class="chip" data-r="miss" aria-pressed="false">Не совпало</button>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="btnReplay">↻ Прослушать снова</button>
+        <button class="btn primary" id="btnNext">Далее →</button>
+      </div>
+      <button class="linkbtn" id="btnEnd">Завершить</button>
+    </div>
+    <div class="mini" id="mini"></div>
+  </section>
+
+  <details class="card">
+    <summary>Настройки</summary>
+    <div class="body">
+      <div class="row"><label for="s-duration">Длительность одного скана</label><output data-for="duration"></output>
+        <input type="range" id="s-duration" data-key="duration" min="0.5" max="3" step="0.25"></div>
+      <div class="row"><label for="s-repeats">Повторов скана</label><output data-for="repeats"></output>
+        <input type="range" id="s-repeats" data-key="repeats" min="1" max="8" step="1"></div>
+      <div class="row"><label for="s-gap">Пауза между сканами</label><output data-for="gap"></output>
+        <input type="range" id="s-gap" data-key="gap" min="0" max="1.5" step="0.1"></div>
+      <div class="row"><label for="s-countdown">Обратный отсчёт</label><output data-for="countdown"></output>
+        <input type="range" id="s-countdown" data-key="countdown" min="0" max="10" step="1"></div>
+      <div class="row"><label for="s-volume">Громкость</label><output data-for="volume"></output>
+        <input type="range" id="s-volume" data-key="volume" min="0.1" max="1" step="0.05"></div>
+      <hr class="sep">
+      <label class="toggle"><input type="checkbox" data-key="showDuring"><span>Показывать фигуру во время сканирования</span></label>
+      <label class="toggle"><input type="checkbox" data-key="showName"><span>Показывать название фигуры при проверке</span></label>
+      <label class="toggle"><input type="checkbox" data-key="pixel"><span>Пиксельный вид 64×64 (ровно то, что озвучивается)</span></label>
+      <label class="toggle"><input type="checkbox" data-key="stereo"><span>Стерео: звук движется слева направо</span></label>
+      <label class="toggle"><input type="checkbox" data-key="click"><span>Щелчок в начале каждого скана</span></label>
+      <hr class="sep">
+      <div class="row"><label for="s-fLow">Нижняя частота (низ картинки)</label><output data-for="fLow"></output>
+        <input type="range" id="s-fLow" data-key="fLow" min="200" max="1000" step="50"></div>
+      <div class="row"><label for="s-fHigh">Верхняя частота (верх картинки)</label><output data-for="fHigh"></output>
+        <input type="range" id="s-fHigh" data-key="fHigh" min="2000" max="8000" step="250"></div>
+      <div class="actions"><button class="btn" id="btnDefaults">Сбросить настройки</button></div>
+    </div>
+  </details>
+
+  <details class="card">
+    <summary>Статистика</summary>
+    <div class="body">
+      <div id="statsTable"></div>
+      <div class="actions">
+        <button class="btn" id="btnCsv">Экспорт CSV</button>
+        <button class="btn danger" id="btnReset">Очистить</button>
+      </div>
+    </div>
+  </details>
+
+  <details class="card">
+    <summary>Как это работает</summary>
+    <div class="body prose">
+      <p>Фигура переводится в звук по принципу сенсорного замещения: картинка <b>сканируется слева направо</b> (время = горизонталь), <b>высота точки задаёт высоту тона</b> (верх — высокий, низ — низкий, экспоненциальная шкала), <b>яркость — громкость</b>. В стерео звук смещается из левого уха в правое по ходу скана.</p>
+      <p>Горизонтальная линия звучит как ровный тон, диагональ ↗ — как восходящий глиссандо, вертикальная — как короткий «аккорд-щелчок», круг — как расходящаяся и сходящаяся пара тонов.</p>
+      <p><b>Цикл:</b> выберите уровень → «Начать» → за время отсчёта закройте глаза → слушайте сканы и стройте образ → двойной сигнал «откройте глаза» → сравните с фигурой, отметьте результат → «Далее».</p>
+      <p>Лучше в наушниках. На iPhone, если звука нет, выключите беззвучный режим. Клавиши: <kbd>Пробел</kbd> — начать / далее, <kbd>R</kbd> — повтор, <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> — оценка, <kbd>Esc</kbd> — стоп.</p>
+      <p>Метод преобразования описан Peter B. L. Meijer (The vOICe, seeingwithsound.com); здесь — независимая реализация на Web Audio. Статистика хранится только в этом браузере.</p>
+    </div>
+  </details>
+
+  <footer>PLT · Parietal Lobe Trainer</footer>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+// ==GEOMETRY==
+const TAU = Math.PI * 2;
+const deg = d => d * Math.PI / 180;
+const rnd = (a, b) => a + Math.random() * (b - a);
+const rint = (a, b) => Math.floor(rnd(a, b + 1));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+const S = (pts, closed = false, fill = false) => ({ pts, closed, fill });
+const mk = (name, strokes, opt = {}) => Object.assign({ name, strokes }, opt);
+
+function arc(cx, cy, rx, ry, a0, a1, n) {
+  n = n || Math.max(12, Math.ceil(Math.abs(a1 - a0) / TAU * 96));
+  const p = [];
+  for (let i = 0; i <= n; i++) { const a = a0 + (a1 - a0) * i / n; p.push([cx + rx * Math.cos(a), cy + ry * Math.sin(a)]); }
+  return p;
+}
+function ngon(n, r = 1, rot = -Math.PI / 2) {
+  const p = [];
+  for (let i = 0; i < n; i++) { const a = rot + i * TAU / n; p.push([r * Math.cos(a), r * Math.sin(a)]); }
+  return p;
+}
+function cubic(p0, p1, p2, p3, n = 60) {
+  const p = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, u = 1 - t;
+    const a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
+    p.push([a * p0[0] + b * p1[0] + c * p2[0] + d * p3[0], a * p0[1] + b * p1[1] + c * p2[1] + d * p3[1]]);
+  }
+  return p;
+}
+function rotPts(pts, a) { const c = Math.cos(a), s = Math.sin(a); return pts.map(([x, y]) => [x * c - y * s, x * s + y * c]); }
+function rotShape(sh, a) { if (a) sh.strokes = sh.strokes.map(st => Object.assign({}, st, { pts: rotPts(st.pts, a) })); return sh; }
+function bbox(strokes) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const st of strokes) for (const [x, y] of st.pts) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  return { x0, y0, x1, y1 };
+}
+function fit(strokes, box) {
+  const b = bbox(strokes), w = b.x1 - b.x0, h = b.y1 - b.y0;
+  let s = Math.min(w > 1e-6 ? box.w / w : Infinity, h > 1e-6 ? box.h / h : Infinity);
+  if (!isFinite(s)) s = 1;
+  const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2, tx = box.x + box.w / 2, ty = box.y + box.h / 2;
+  return strokes.map(st => Object.assign({}, st, { pts: st.pts.map(([x, y]) => [tx + (x - cx) * s, ty + (y - cy) * s]) }));
+}
+const NGON_NAME = { 3: 'треугольник', 4: 'четырёхугольник', 5: 'пятиугольник', 6: 'шестиугольник' };
+
+const GEN = {
+  // ---- 1: линии
+  hline: () => mk('Горизонтальная линия', [S([[-1, 0], [1, 0]])]),
+  vline: () => mk('Вертикальная линия', [S([[0, -1], [0, 1]])]),
+  diagUp: () => mk('Диагональ ↗', [S([[-1, 1], [1, -1]])]),
+  diagDown: () => mk('Диагональ ↘', [S([[-1, -1], [1, 1]])]),
+  // ---- 2: линии и углы
+  angledLine: () => { const a = pick([15, 30, 60, 75, 105, 120, 150, 165]); return mk(`Линия под углом ${a}°`, [S(rotPts([[-1, 0], [1, 0]], -deg(a)))]); },
+  plus: () => mk('Крест +', [S([[-1, 0], [1, 0]]), S([[0, -1], [0, 1]])]),
+  xcross: () => mk('Крест ×', [S([[-1, -1], [1, 1]]), S([[-1, 1], [1, -1]])]),
+  vee: () => { const v = pick([['Галочка V', [[-1, -1], [0, 1], [1, -1]]], ['Галочка Λ', [[-1, 1], [0, -1], [1, 1]]], ['Угол <', [[1, -1], [-1, 0], [1, 1]]], ['Угол >', [[-1, -1], [1, 0], [-1, 1]]]]); return mk(v[0], [S(v[1])]); },
+  corner: () => { const v = pick([['Угол └', [[-1, -1], [-1, 1], [1, 1]]], ['Угол ┘', [[1, -1], [1, 1], [-1, 1]]], ['Угол ┌', [[1, 1], [-1, 1], [-1, -1], [1, -1]].slice(1)], ['Угол ┐', [[-1, -1], [1, -1], [1, 1]]]]); return mk(v[0], [S(v[1])]); },
+  tee: () => { const k = rint(0, 3); return rotShape(mk(['Т-образная ┬', 'Т-образная ┤', 'Т-образная ┴', 'Т-образная ├'][k], [S([[-1, -1], [1, -1]]), S([[0, -1], [0, 1]])]), k * Math.PI / 2); },
+  parallel: () => Math.random() < 0.5
+    ? mk('Две горизонтальные линии', [S([[-1, -0.5], [1, -0.5]]), S([[-1, 0.5], [1, 0.5]])])
+    : mk('Две вертикальные линии', [S([[-0.5, -1], [-0.5, 1]]), S([[0.5, -1], [0.5, 1]])]),
+  openAngle: () => { const t = pick([30, 45, 60, 90, 120, 135, 150]); return rotShape(mk(`Угол ${t}°`, [S([[1, 0], [0, 0], [Math.cos(deg(t)), -Math.sin(deg(t))]])]), rnd(0, TAU)); },
+  // ---- 3-4: простые фигуры
+  square: () => mk('Квадрат', [S(ngon(4, 1, -Math.PI / 4), true)]),
+  tri: () => mk('Треугольник', [S(ngon(3), true)]),
+  triDown: () => mk('Треугольник вершиной вниз', [S(ngon(3, 1, Math.PI / 2), true)]),
+  circle: () => mk('Круг', [S(arc(0, 0, 1, 1, 0, TAU), true)], { noRot: true }),
+  rect: () => { const h = rnd(0.35, 0.65); return mk('Прямоугольник', [S([[-1, -h], [1, -h], [1, h], [-1, h]], true)]); },
+  rightTri: () => mk('Прямоугольный треугольник', [S([[-1, 1], [-1, -1], [1, 1]], true)]),
+  ellipse: () => mk('Эллипс', [S(arc(0, 0, 1, rnd(0.45, 0.7), 0, TAU), true)]),
+  // ---- 5: многоугольники
+  trapezoid: () => { const t = rnd(0.3, 0.65); return mk('Трапеция', [S([[-t, -0.6], [t, -0.6], [1, 0.6], [-1, 0.6]], true)]); },
+  rightTrap: () => { const t = rnd(-0.2, 0.4); return mk('Прямоугольная трапеция', [S([[-1, -0.6], [t, -0.6], [1, 0.6], [-1, 0.6]], true)]); },
+  rhombus: () => { const a = rnd(0.45, 0.8); return mk('Ромб', [S([[0, -1], [a, 0], [0, 1], [-a, 0]], true)]); },
+  parallelogram: () => { const k = rnd(0.3, 0.6); return mk('Параллелограмм', [S([[-1 + k, -0.55], [1, -0.55], [1 - k, 0.55], [-1, 0.55]], true)]); },
+  kite: () => { const y = rnd(-0.5, -0.2), w = rnd(0.5, 0.75); return mk('Дельтоид', [S([[0, -1], [w, y], [0, 1], [-w, y]], true)]); },
+  pentagon: () => mk('Пятиугольник', [S(ngon(5), true)]),
+  hexagon: () => mk('Шестиугольник', [S(ngon(6, 1, 0), true)]),
+  octagon: () => mk('Восьмиугольник', [S(ngon(8, 1, -Math.PI / 2 + Math.PI / 8), true)]),
+  // ---- 6: искажённые
+  irregular: () => {
+    const n = rint(3, 6), p = [];
+    for (let i = 0; i < n; i++) { const a = i * TAU / n + rnd(-0.3, 0.3) * TAU / n; const r = rnd(0.65, 1); p.push([r * Math.cos(a), r * Math.sin(a)]); }
+    return mk('Неправильный ' + NGON_NAME[n], [S(p, true)]);
+  },
+  skewQuad: () => mk('Искажённый четырёхугольник', [S([[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([x, y]) => [x + rnd(-0.4, 0.4), y + rnd(-0.4, 0.4)]), true)]),
+  star: () => { const n = pick([4, 5, 6]), k = rnd(0.35, 0.55), p = []; for (let i = 0; i < 2 * n; i++) { const a = -Math.PI / 2 + i * Math.PI / n, r = i % 2 ? k : 1; p.push([r * Math.cos(a), r * Math.sin(a)]); } return mk(`Звезда (${n} лучей)`, [S(p, true)]); },
+  arrow: () => mk('Стрелка', [S([[-1, -0.25], [0.2, -0.25], [0.2, -0.6], [1, 0], [0.2, 0.6], [0.2, 0.25], [-1, 0.25]], true)]),
+  plusOutline: () => { const a = 0.33; return mk('Крест (контур)', [S([[-a, -1], [a, -1], [a, -a], [1, -a], [1, a], [a, a], [a, 1], [-a, 1], [-a, a], [-1, a], [-1, -a], [-a, -a]], true)]); },
+  lOutline: () => mk('L-образная фигура', [S([[-1, -1], [-0.3, -1], [-0.3, 0.3], [1, 0.3], [1, 1], [-1, 1]], true)]),
+  zigzag: () => { const n = rint(3, 6), a = rnd(0.3, 0.6), p = []; for (let i = 0; i <= n; i++) p.push([-1 + 2 * i / n, i % 2 ? a : -a]); return mk('Зигзаг', [S(p)]); },
+  // ---- 7: кривые
+  arcShape: () => { const span = deg(rnd(100, 260)), a0 = rnd(0, TAU); return mk('Дуга', [S(arc(0, 0, 1, 1, a0, a0 + span))]); },
+  semicircle: () => mk('Полукруг', [S(arc(0, 0, 1, 1, Math.PI, TAU), true)]),
+  sine: () => { const per = pick([1, 1.5, 2, 2.5]), amp = rnd(0.3, 0.5), sg = pick([1, -1]), p = []; for (let i = 0; i <= 120; i++) { const t = i / 120; p.push([-1 + 2 * t, -sg * amp * Math.sin(per * TAU * t)]); } return mk('Синусоида', [S(p)], { upright: true }); },
+  spiral: () => { const turns = rnd(1.5, 2.5), T = turns * TAU, p = [], sg = pick([1, -1]); for (let i = 0; i <= 220; i++) { const t = T * i / 220, r = 0.06 + 0.94 * t / T; p.push([r * Math.cos(sg * t), r * Math.sin(sg * t)]); } return mk('Спираль', [S(p)]); },
+  sCurve: () => mk('S-образная кривая', [S(cubic([-1, 0.6], [-0.1, -1.7], [0.1, 1.7], [1, -0.6]))]),
+  freeCurve: () => mk('Плавная кривая', [S(cubic([-1, rnd(-1, 1)], [rnd(-0.6, 0.2), rnd(-1.6, 1.6)], [rnd(-0.2, 0.6), rnd(-1.6, 1.6)], [1, rnd(-1, 1)]))]),
+  // ---- 8: смешанные контуры
+  dShape: () => mk('Фигура «D»', [S([[-0.6, 1], [-0.6, -1], ...arc(-0.6, 0, 1.4, 1, -Math.PI / 2, Math.PI / 2)], true)]),
+  drop: () => { const p = []; for (let i = 0; i < 120; i++) { const t = i / 120 * TAU; p.push([Math.sin(t) * Math.pow(Math.sin(t / 2), 1.5), -Math.cos(t)]); } return mk('Капля', [S(p, true)], { upright: true }); },
+  heart: () => { const p = []; for (let i = 0; i < 120; i++) { const t = i / 120 * TAU; p.push([Math.pow(Math.sin(t), 3), -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) / 16]); } return mk('Сердце', [S(p, true)], { upright: true }); },
+  crescent: () => {
+    const d = rnd(0.35, 0.55), r = rnd(0.8, 0.9);
+    const x = (1 - r * r + d * d) / (2 * d), y = Math.sqrt(Math.max(0, 1 - x * x));
+    const f0 = Math.atan2(y, x), p0 = Math.atan2(y, x - d);
+    return mk('Полумесяц', [S([...arc(0, 0, 1, 1, f0, TAU - f0), ...arc(d, 0, r, r, TAU - p0, p0)], true)]);
+  },
+  blob: () => {
+    const a = [rnd(0.12, 0.25), rnd(0.1, 0.2), rnd(0.05, 0.12)], ph = [rnd(0, TAU), rnd(0, TAU), rnd(0, TAU)], p = [];
+    for (let i = 0; i < 120; i++) { const t = i / 120 * TAU; const r = 1 + a[0] * Math.sin(2 * t + ph[0]) + a[1] * Math.sin(3 * t + ph[1]) + a[2] * Math.sin(5 * t + ph[2]); p.push([r * Math.cos(t), r * Math.sin(t)]); }
+    return mk('Плавная клякса', [S(p, true)]);
+  },
+  concave: () => { const n = rint(6, 9), p = []; for (let i = 0; i < n; i++) { const a = i * TAU / n + rnd(-0.2, 0.2) * TAU / n, r = i % 2 ? rnd(0.35, 0.6) : rnd(0.8, 1); p.push([r * Math.cos(a), r * Math.sin(a)]); } return mk('Невыпуклый многоугольник', [S(p, true)]); },
+  house: () => mk('Домик', [S([[-1, 1], [-1, -0.1], [0, -1], [1, -0.1], [1, 1]], true)], { upright: true }),
+  arch: () => mk('Арка', [S([[-1, 1], [-1, -0.1], ...arc(0, -0.1, 1, 0.9, Math.PI, TAU), [1, 1]], true)], { upright: true }),
+};
+
+const LEVELS = [
+  { name: 'Линии', desc: 'Одна прямая: горизонталь, вертикаль или диагональ. Высота горизонтали меняется — тренирует связь «высота ↔ тон».', pool: ['hline', 'vline', 'diagUp', 'diagDown'] },
+  { name: 'Линии и углы', desc: 'Линии под разными углами, кресты, галочки, прямые и острые углы, Т-образные, параллельные.', pool: ['angledLine', 'plus', 'xcross', 'vee', 'corner', 'tee', 'parallel', 'openAngle'] },
+  { name: 'Простые фигуры', desc: 'Квадрат, треугольник, круг — по центру, без поворотов.', pool: ['square', 'tri', 'triDown', 'circle'] },
+  { name: 'Простые фигуры+', desc: 'Плюс прямоугольник, эллипс, прямоугольный треугольник; повороты, смещения, иногда заливка.', pool: ['square', 'tri', 'circle', 'rect', 'rightTri', 'ellipse'] },
+  { name: 'Многоугольники', desc: 'Трапеции, ромб, параллелограмм, дельтоид, 5-, 6-, 8-угольники.', pool: ['trapezoid', 'rightTrap', 'rhombus', 'parallelogram', 'kite', 'pentagon', 'hexagon', 'octagon'] },
+  { name: 'Искажённые фигуры', desc: 'Неправильные многоугольники, звёзды, стрелки, кресты, зигзаги; любой поворот.', pool: ['irregular', 'skewQuad', 'star', 'arrow', 'plusOutline', 'lOutline', 'zigzag'] },
+  { name: 'Кривые', desc: 'Дуги, полукруг, синусоиды, спирали, S-кривые, свободные кривые.', pool: ['arcShape', 'semicircle', 'sine', 'spiral', 'sCurve', 'freeCurve'] },
+  { name: 'Смешанные контуры', desc: 'Прямые + кривые и невыпуклые формы: «D», капля, сердце, полумесяц, клякса, домик, арка.', pool: ['dShape', 'drop', 'heart', 'crescent', 'blob', 'concave', 'house', 'arch'] },
+  { name: 'Две фигуры', desc: 'Две фигуры уровней 3–6 в разных частях поля: что и где.', multi: { n: [2, 2], src: [3, 4, 5, 6] } },
+  { name: 'Сцены', desc: '2–3 сложные фигуры уровней 5–8 в произвольной раскладке.', multi: { n: [2, 3], src: [5, 6, 7, 8] } },
+];
+
+function post(level, sh) {
+  if (level === 4) {
+    if (!sh.noRot) rotShape(sh, deg(pick([0, 0, 15, 30, 45, 60, 90])));
+    if (Math.random() < 0.25 && sh.strokes.every(s => s.closed)) { sh.strokes.forEach(s => s.fill = true); sh.name += ' (закрашен)'; }
+  } else if (level === 5) {
+    rotShape(sh, deg(pick([0, 0, 0, 15, -15, 30, -30, 90, 180])));
+  } else if (level >= 6) {
+    rotShape(sh, sh.upright ? deg(rnd(-15, 15)) : rnd(0, TAU));
+  }
+  return sh;
+}
+function single(level) { return post(level, GEN[pick(LEVELS[level - 1].pool)]()); }
+
+function placeSingle(level, sh) {
+  const b = bbox(sh.strokes), w = b.x1 - b.x0, h = b.y1 - b.y0, mx = Math.max(w, h);
+  const aw = w / mx, ah = h / mx, m = 0.08;
+  let s, jx, jy;
+  if (level === 1) { s = rnd(0.5, 0.78); jx = 0.12; jy = 0.3; }
+  else if (level <= 3) { s = rnd(0.5, 0.78); jx = 0.07; jy = 0.07; }
+  else { s = rnd(0.4, 0.8); jx = 0.5; jy = 0.5; }
+  const bw = s * aw, bh = s * ah;
+  const cx = clamp(0.5 + rnd(-jx, jx), bw / 2 + m, 1 - bw / 2 - m);
+  const cy = clamp(0.5 + rnd(-jy, jy), bh / 2 + m, 1 - bh / 2 - m);
+  return fit(sh.strokes, { x: cx - bw / 2, y: cy - bh / 2, w: bw, h: bh });
+}
+function regionsFor(n) {
+  const Q = [{ x: 0, y: 0, w: .5, h: .5 }, { x: .5, y: 0, w: .5, h: .5 }, { x: 0, y: .5, w: .5, h: .5 }, { x: .5, y: .5, w: .5, h: .5 }];
+  if (n === 2) {
+    const o = rint(0, 3);
+    if (o === 0) return [{ x: 0, y: 0, w: .5, h: 1 }, { x: .5, y: 0, w: .5, h: 1 }];
+    if (o === 1) return [{ x: 0, y: 0, w: 1, h: .5 }, { x: 0, y: .5, w: 1, h: .5 }];
+    return o === 2 ? [Q[0], Q[3]] : [Q[1], Q[2]];
+  }
+  return Q.sort(() => Math.random() - 0.5).slice(0, n);
+}
+function jitterBox(r, pad, minScale) {
+  const w = r.w - 2 * pad, h = r.h - 2 * pad, s = rnd(minScale, 1), bw = w * s, bh = h * s;
+  return { x: r.x + pad + rnd(0, w - bw), y: r.y + pad + rnd(0, h - bh), w: bw, h: bh };
+}
+function generate(level) {
+  const L = LEVELS[level - 1];
+  if (!L.multi) { const sh = single(level); return { name: sh.name, strokes: placeSingle(level, sh) }; }
+  const n = rint(L.multi.n[0], L.multi.n[1]), regs = regionsFor(n), strokes = [], names = [];
+  for (let i = 0; i < n; i++) {
+    const sh = single(pick(L.multi.src));
+    strokes.push(...fit(sh.strokes, jitterBox(regs[i], 0.06, 0.75)));
+    names.push(sh.name);
+  }
+  return { name: names.join(' + '), strokes };
+}
+// ==END GEOMETRY==
+
+// ---------- storage / settings ----------
+const $ = s => document.querySelector(s);
+function load(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
+function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } }
+const DEF = { level: 1, duration: 1, repeats: 3, gap: 0.3, countdown: 3, volume: 0.8, showDuring: true, showName: true, pixel: false, stereo: true, click: false, fLow: 500, fHigh: 5000 };
+const settings = Object.assign({}, DEF, load('plt.settings', {}));
+let history = load('plt.history', []); if (!Array.isArray(history)) history = [];
+
+// ---------- rendering ----------
+const GW = 64, GH = 64, LINE = 0.034;
+const cv = $('#cv'), ctx = cv.getContext('2d'), stage = $('#stage');
+
+function drawStrokes(g, strokes, size, color, lw) {
+  g.save(); g.lineJoin = 'round'; g.lineCap = 'round'; g.lineWidth = lw; g.strokeStyle = color; g.fillStyle = color;
+  for (const st of strokes) {
+    g.beginPath();
+    st.pts.forEach(([x, y], i) => i ? g.lineTo(x * size, y * size) : g.moveTo(x * size, y * size));
+    if (st.closed) g.closePath();
+    if (st.fill) g.fill();
+    g.stroke();
+  }
+  g.restore();
+}
+function rasterGrid(shape) {
+  const c = document.createElement('canvas'); c.width = GW; c.height = GH;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.fillStyle = '#000'; g.fillRect(0, 0, GW, GH);
+  drawStrokes(g, shape.strokes, GW, '#fff', LINE * GW);
+  const d = g.getImageData(0, 0, GW, GH).data, img = new Float32Array(GW * GH);
+  for (let i = 0; i < GW * GH; i++) { const v = d[i * 4] / 255; img[i] = v < 0.04 ? 0 : v; }
+  return { canvas: c, img };
+}
+
+// ---------- audio ----------
+let actx = null, master = null, nodes = [], iosUnlocked = false;
+function unlockIOS() {
+  if (iosUnlocked) return; iosUnlocked = true;
+  try { if (navigator.audioSession) { navigator.audioSession.type = 'playback'; return; } } catch (e) { }
+  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (!isIOS) return;
+  const sr = 8000, n = 800, b = new ArrayBuffer(44 + n * 2), v = new DataView(b);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+  const a = new Audio(URL.createObjectURL(new Blob([b], { type: 'audio/wav' })));
+  a.loop = true; a.setAttribute('playsinline', ''); a.play().catch(() => { });
+}
+function ensureAudio() {
+  unlockIOS();
+  if (!actx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    actx = new AC(); master = actx.createGain(); master.gain.value = settings.volume; master.connect(actx.destination);
+  }
+  if (actx.state !== 'running') actx.resume().catch(() => { });
+}
+function beep(t, f, dur, vol = 0.3, type = 'sine') {
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type; o.frequency.value = f;
+  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.03); nodes.push(o);
+}
+function stopAudio() { for (const n of nodes) { try { n.stop(); } catch (e) { } } nodes = []; }
+
+// image → sound: columns = time (left→right), rows = exponential pitch (top = high), brightness = loudness
+function synthBuffer(img) {
+  const sr = actx.sampleRate, N = Math.max(1, Math.floor(settings.duration * sr)), spc = N / GW;
+  const fl = settings.fLow, fh = Math.max(settings.fHigh, fl * 1.5);
+  const mono = new Float32Array(N), ci = new Int16Array(N), fr = new Float32Array(N);
+  for (let i = 0; i < N; i++) { let c = (i + 0.5) / spc - 0.5; c = clamp(c, 0, GW - 1); const k = Math.min(Math.floor(c), GW - 2); ci[i] = k; fr[i] = c - k; }
+  for (let r = 0; r < GH; r++) {
+    const row = img.subarray(r * GW, (r + 1) * GW);
+    let any = false; for (let c = 0; c < GW; c++) if (row[c] > 0) { any = true; break; }
+    if (!any) continue;
+    const f = fl * Math.pow(fh / fl, (GH - 1 - r) / (GH - 1)), w = TAU * f / sr, ph = Math.random() * TAU, tilt = Math.pow(fl / f, 0.2);
+    for (let i = 0; i < N; i++) {
+      const k = ci[i], a = row[k] + (row[k + 1] - row[k]) * fr[i];
+      if (a > 0.002) mono[i] += tilt * a * Math.sin(w * i + ph);
+    }
+  }
+  let peak = 0; for (let i = 0; i < N; i++) { const v = Math.abs(mono[i]); if (v > peak) peak = v; }
+  const norm = peak > 0 ? 1 / peak : 0, drive = 1.6, td = Math.tanh(drive), fade = Math.floor(0.004 * sr);
+  const buf = actx.createBuffer(2, N, sr), L = buf.getChannelData(0), R = buf.getChannelData(1);
+  for (let i = 0; i < N; i++) {
+    let v = 0.85 * Math.tanh(drive * mono[i] * norm) / td;
+    if (i < fade) v *= i / fade; else if (i > N - fade) v *= (N - i) / fade;
+    let gl = Math.SQRT1_2, gr = Math.SQRT1_2;
+    if (settings.stereo) { const p = (0.1 + 0.8 * i / (N - 1)) * Math.PI / 2; gl = Math.cos(p); gr = Math.sin(p); }
+    L[i] = v * gl; R[i] = v * gr;
+  }
+  return buf;
+}
+const bufKey = () => [settings.duration, settings.fLow, settings.fHigh, settings.stereo, actx.sampleRate].join('|');
+
+// ---------- state ----------
+let phase = 'idle';        // idle | countdown | scan | post | review
+let mode = 'train';        // train | demo
+let trial = null, tl = null, raf = 0, wakeLock = null;
+
+function makeTrial(level, demo) {
+  let sh, tries = 0;
+  do { sh = generate(level); } while (trial && sh.name === trial.shape.name && ++tries < 8);
+  return { level, demo, shape: sh, grid: rasterGrid(sh), buf: null, key: '', rec: null };
+}
+function ensureBuffer() {
+  const k = bufKey();
+  if (!trial.buf || trial.key !== k) { trial.buf = synthBuffer(trial.grid.img); trial.key = k; }
+}
+async function wake(on) {
+  try {
+    if (on && 'wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); }
+    else if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch (e) { }
+}
+
+function start(m) {
+  ensureAudio();
+  mode = m;
+  trial = makeTrial(settings.level, m === 'demo');
+  play(m === 'train', 'idle');
+  wake(true);
+}
+function play(eyes, stopTo) {
+  stopAudio(); cancelAnimationFrame(raf);
+  ensureBuffer();
+  const t0 = actx.currentTime + 0.1, n = eyes ? Math.round(settings.countdown) : 0;
+  for (let i = 0; i < n; i++) beep(t0 + i, i === n - 1 ? 660 : 440, 0.13, 0.3);
+  const scanStart = t0 + n + (n ? 0.4 : 0);
+  const reps = Math.round(settings.repeats), dur = trial.buf.duration, per = dur + settings.gap;
+  for (let k = 0; k < reps; k++) {
+    const s = actx.createBufferSource(); s.buffer = trial.buf; s.connect(master); s.start(scanStart + k * per); nodes.push(s);
+    if (settings.click) beep(Math.max(t0, scanStart + k * per - 0.04), 1400, 0.02, 0.12, 'square');
+  }
+  const end = scanStart + reps * per - settings.gap;
+  if (eyes) { beep(end + 0.2, 523, 0.16, 0.3, 'triangle'); beep(end + 0.4, 784, 0.4, 0.3, 'triangle'); }
+  tl = { t0, n, scanStart, end, per, dur, reps, eyes, stopTo, finish: end + (eyes ? 0.85 : 0.2) };
+  setPhase(n ? 'countdown' : 'scan');
+  raf = requestAnimationFrame(tick);
+}
+function tick() {
+  if (!tl) return;
+  const now = actx.currentTime;
+  if (now < tl.scanStart) {
+    setPhase('countdown');
+    const d = tl.n - Math.floor(now - tl.t0);
+    setText($('#count'), tl.n && now >= tl.t0 && d >= 1 ? String(d) : '');
+    drawStage(null);
+  } else if (now < tl.end) {
+    setPhase('scan');
+    const e = now - tl.scanStart, k = Math.floor(e / tl.per), w = e - k * tl.per;
+    setText($('#status'), (tl.eyes ? 'Слушайте и стройте образ' : 'Смотрите и слушайте') + ` · скан ${Math.min(k + 1, tl.reps)} из ${tl.reps}`);
+    drawStage(w <= tl.dur ? w / tl.dur : null);
+  } else if (now < tl.finish) {
+    setPhase('post'); drawStage(null);
+  } else {
+    tl = null; setPhase('review'); enterReview(); return;
+  }
+  raf = requestAnimationFrame(tick);
+}
+function enterReview() {
+  if (!trial.demo && !trial.rec) {
+    trial.rec = { t: Date.now(), level: trial.level, shape: trial.shape.name, rating: null, dur: settings.duration, reps: Math.round(settings.repeats) };
+    history.push(trial.rec);
+    if (history.length > 5000) history.splice(0, history.length - 5000);
+    save('plt.history', history); renderStats();
+  }
+  updateUI(); drawStage(null);
+}
+function stop() {
+  stopAudio(); cancelAnimationFrame(raf);
+  const to = tl ? tl.stopTo : 'idle'; tl = null;
+  if (to === 'review' && trial) { setPhase('review'); drawStage(null); }
+  else { trial = null; setPhase('idle'); wake(false); drawStage(null); }
+}
+function endSession() { stopAudio(); tl = null; trial = null; setPhase('idle'); wake(false); drawStage(null); }
+function next() { start(mode); }
+function replay() { if (!trial) return; ensureAudio(); play(false, 'review'); }
+function rate(r) {
+  if (!trial || !trial.rec) return;
+  trial.rec.rating = trial.rec.rating === r ? null : r;
+  save('plt.history', history); renderStats(); updateUI();
+}
+
+// ---------- UI ----------
+function setText(el, s) { if (el.textContent !== s) el.textContent = s; }
+function setPhase(p) { if (phase !== p) { phase = p; updateUI(); } }
+function figureVisible() {
+  if (!trial) return false;
+  if (phase === 'review') return true;
+  if ((phase === 'scan' || phase === 'post') && tl) return !tl.eyes || settings.showDuring;
+  return false;
+}
+function updateUI() {
+  const playing = phase === 'countdown' || phase === 'scan' || phase === 'post';
+  $('#actIdle').classList.toggle('hidden', phase !== 'idle');
+  $('#actRun').classList.toggle('hidden', !playing);
+  $('#actReview').classList.toggle('hidden', phase !== 'review');
+  $('#level').disabled = playing;
+  $('#rateBox').classList.toggle('hidden', !trial || trial.demo);
+  $('#btnNext').textContent = mode === 'demo' ? 'Следующая (демо) →' : 'Далее →';
+  document.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', String(!!(trial && trial.rec && trial.rec.rating === c.dataset.r))));
+
+  const hint = $('#hint'), count = $('#count');
+  hint.classList.remove('big');
+  if (phase === 'idle') { setText(count, ''); setText(hint, 'Наденьте наушники и нажмите «Начать»'); }
+  else if (phase === 'countdown') setText(hint, 'Закройте глаза');
+  else if (phase === 'scan') { setText(count, ''); setText(hint, figureVisible() ? '' : '♪ слушайте…'); }
+  else if (phase === 'post') { setText(count, ''); setText(hint, tl && tl.eyes ? 'Откройте глаза' : ''); hint.classList.add('big'); }
+  else { setText(count, ''); setText(hint, ''); }
+
+  const st = $('#status');
+  if (phase === 'idle') setText(st, 'Выберите сложность. Отсчёт → закрыть глаза → слушать → открыть и сравнить.');
+  else if (phase === 'countdown') setText(st, 'Приготовьтесь…');
+  else if (phase === 'post') setText(st, tl && tl.eyes ? 'Откройте глаза' : '');
+  else if (phase === 'review') setText(st, trial && trial.demo ? 'Так звучит эта фигура. Можно прослушать ещё раз.' : 'Сравните представленный образ с фигурой');
+
+  const tag = $('#tag'), showTag = figureVisible() && settings.showName && (phase === 'review' || (tl && !tl.eyes));
+  if (trial) setText(tag, trial.shape.name);
+  tag.classList.toggle('show', !!showTag);
+}
+function drawStage(progress) {
+  const Sz = cv.width; if (!Sz) return;
+  const g = ctx;
+  g.fillStyle = '#000'; g.fillRect(0, 0, Sz, Sz);
+  g.strokeStyle = 'rgba(255,255,255,0.05)'; g.lineWidth = Math.max(1, Sz / 600); g.beginPath();
+  for (const f of [0.25, 0.5, 0.75]) { g.moveTo(f * Sz, 0); g.lineTo(f * Sz, Sz); g.moveTo(0, f * Sz); g.lineTo(Sz, f * Sz); }
+  g.stroke();
+  if (figureVisible()) {
+    if (settings.pixel) { g.imageSmoothingEnabled = false; g.drawImage(trial.grid.canvas, 0, 0, Sz, Sz); }
+    else drawStrokes(g, trial.shape.strokes, Sz, '#f2f5f8', LINE * Sz);
+  }
+  if (progress != null) {
+    const x = progress * Sz, tw = Sz * 0.14, gr = g.createLinearGradient(x - tw, 0, x, 0);
+    gr.addColorStop(0, 'rgba(79,209,197,0)'); gr.addColorStop(1, 'rgba(79,209,197,0.28)');
+    g.fillStyle = gr; g.fillRect(x - tw, 0, tw, Sz);
+    const lw = Math.max(2, Sz / 220); g.fillStyle = '#4fd1c5'; g.fillRect(x - lw / 2, 0, lw, Sz);
+  }
+}
+function resize() {
+  const r = stage.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 3), px = Math.round(r.width * dpr);
+  if (px && cv.width !== px) { cv.width = px; cv.height = px; }
+  if (!tl) drawStage(null);
+}
+
+function renderLevel() {
+  const L = LEVELS[settings.level - 1];
+  $('#level').value = settings.level;
+  $('#levelOut').textContent = `${settings.level} · ${L.name}`;
+  $('#levelDesc').textContent = L.desc;
+  renderStats();
+}
+const pct = (a, b) => b ? Math.round(100 * a / b) + '%' : '—';
+function aggregate() {
+  const by = {};
+  for (const h of history) {
+    const s = by[h.level] || (by[h.level] = { n: 0, match: 0, partial: 0, miss: 0, rated: 0 });
+    s.n++; if (h.rating) { s[h.rating]++; s.rated++; }
+  }
+  return by;
+}
+function renderStats() {
+  const by = aggregate(), s = by[settings.level];
+  $('#mini').textContent = s ? `Уровень ${settings.level}: попыток ${s.n} · совпало ${pct(s.match, s.rated)} · частично ${pct(s.partial, s.rated)}` : `Уровень ${settings.level}: попыток пока нет`;
+  const lv = Object.keys(by).map(Number).sort((a, b) => a - b);
+  if (!lv.length) { $('#statsTable').innerHTML = '<p class="mini">Пока нет данных.</p>'; return; }
+  let html = '<table><thead><tr><th>Уровень</th><th>Попыток</th><th>Совпало</th><th>Частично</th><th>Нет</th></tr></thead><tbody>';
+  for (const l of lv) { const x = by[l]; html += `<tr><td>${l} · ${LEVELS[l - 1].name}</td><td>${x.n}</td><td>${pct(x.match, x.rated)}</td><td>${pct(x.partial, x.rated)}</td><td>${pct(x.miss, x.rated)}</td></tr>`; }
+  $('#statsTable').innerHTML = html + '</tbody></table>';
+}
+function exportCsv() {
+  const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const rows = [['time', 'level', 'level_name', 'shape', 'rating', 'scan_s', 'repeats'].join(',')];
+  for (const h of history) rows.push([new Date(h.t).toISOString(), h.level, q(LEVELS[h.level - 1].name), q(h.shape), h.rating || '', h.dur, h.reps].join(','));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\ufeff' + rows.join('\n')], { type: 'text/csv;charset=utf-8' }));
+  a.download = `plt-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+const FMT = {
+  duration: v => v.toFixed(2) + ' с', repeats: v => v + '×', gap: v => v.toFixed(1) + ' с',
+  countdown: v => v ? v + ' с' : 'выкл', volume: v => Math.round(v * 100) + '%', fLow: v => v + ' Гц', fHigh: v => v + ' Гц'
+};
+function renderOutputs() { document.querySelectorAll('output[data-for]').forEach(o => { const k = o.dataset.for; o.textContent = FMT[k](settings[k]); }); }
+function bindSettings() {
+  document.querySelectorAll('[data-key]').forEach(el => {
+    const k = el.dataset.key;
+    if (el.type === 'checkbox') { el.checked = !!settings[k]; el.onchange = () => { settings[k] = el.checked; onSetting(k); }; }
+    else { el.value = settings[k]; el.oninput = () => { settings[k] = parseFloat(el.value); onSetting(k); }; }
+  });
+  renderOutputs();
+}
+function onSetting(k) {
+  save('plt.settings', settings); renderOutputs();
+  if (k === 'volume' && master) master.gain.value = settings.volume;
+  if (!tl) { updateUI(); drawStage(null); }
+}
+
+// ---------- events ----------
+$('#level').addEventListener('input', e => { settings.level = parseInt(e.target.value, 10); save('plt.settings', settings); renderLevel(); });
+$('#btnStart').onclick = () => start('train');
+$('#btnDemo').onclick = () => start('demo');
+$('#btnStop').onclick = stop;
+$('#btnNext').onclick = next;
+$('#btnReplay').onclick = replay;
+$('#btnEnd').onclick = endSession;
+document.querySelectorAll('.chip').forEach(c => c.onclick = () => rate(c.dataset.r));
+$('#btnCsv').onclick = exportCsv;
+$('#btnReset').onclick = () => { if (confirm('Удалить всю статистику?')) { history = []; save('plt.history', history); renderStats(); } };
+$('#btnDefaults').onclick = () => { const lvl = settings.level; Object.assign(settings, DEF, { level: lvl }); save('plt.settings', settings); bindSettings(); onSetting('volume'); };
+
+document.addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const tag = (e.target.tagName || '').toLowerCase();
+  const onControl = tag === 'button' || tag === 'input' || tag === 'summary';
+  if ((e.key === ' ' || e.key === 'Enter') && !onControl) {
+    e.preventDefault();
+    if (phase === 'idle') start('train'); else if (phase === 'review') next();
+  } else if (e.key === 'Escape') {
+    if (tl) stop(); else if (phase === 'review') endSession();
+  } else if (phase === 'review' && !tl) {
+    if (e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К') replay();
+    else if (e.key === '1') rate('match'); else if (e.key === '2') rate('partial'); else if (e.key === '3') rate('miss');
+  }
+});
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && (tl || phase === 'review')) wake(true); });
+
+if ('ResizeObserver' in window) new ResizeObserver(resize).observe(stage); else window.addEventListener('resize', resize);
+
+bindSettings(); renderLevel(); updateUI(); resize();
+})();
+</script>
+</body>
+</html>
