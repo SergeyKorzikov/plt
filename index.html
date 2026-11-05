@@ -34,6 +34,13 @@ h1{font-size:18px;margin:0;font-weight:700}
   background:#000;border:1px solid var(--line);border-radius:18px;overflow:hidden;
   box-shadow:0 0 0 6px #0e1216,0 24px 60px rgba(0,0,0,.55)}
 @supports not (aspect-ratio:1/1){.stage{height:min(92vw,60vh,560px)}}
+.stage.wide{width:100%}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--panel2);border:1px solid var(--line);
+  border-radius:12px;padding:4px;margin-bottom:14px}
+.seg-btn{appearance:none;border:0;background:transparent;color:var(--muted);font:inherit;font-weight:600;font-size:14px;
+  padding:10px 6px;border-radius:9px;cursor:pointer;touch-action:manipulation}
+.seg-btn[aria-checked=true]{background:var(--accent);color:var(--accent-ink)}
+.seg-btn:disabled{opacity:.5;cursor:default}
 .stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
   justify-content:center;gap:6px;pointer-events:none;text-align:center;padding:16px}
@@ -123,6 +130,10 @@ kbd{font:12px ui-monospace,monospace;border:1px solid var(--line);border-radius:
   </section>
 
   <section class="card">
+    <div class="seg" role="radiogroup" aria-label="Режим">
+      <button class="seg-btn" data-mode="shape" role="radio">Фигуры</button>
+      <button class="seg-btn" data-mode="word" role="radio">Буквы и слова</button>
+    </div>
     <div class="level-head">
       <label for="level">Сложность</label>
       <output id="levelOut"></output>
@@ -178,6 +189,9 @@ kbd{font:12px ui-monospace,monospace;border:1px solid var(--line);border-radius:
       <label class="toggle"><input type="checkbox" data-key="stereo"><span>Стерео: звук движется слева направо</span></label>
       <label class="toggle"><input type="checkbox" data-key="click"><span>Щелчок в начале каждого скана</span></label>
       <hr class="sep">
+      <label class="toggle"><input type="checkbox" data-key="lower"><span>Слова: строчные буквы (по умолчанию заглавные)</span></label>
+      <label class="toggle"><input type="checkbox" data-key="stretch"><span>Слова: удлинять скан по длине слова (темп на букву постоянный)</span></label>
+      <hr class="sep">
       <div class="row"><label for="s-fLow">Нижняя частота (низ картинки)</label><output data-for="fLow"></output>
         <input type="range" id="s-fLow" data-key="fLow" min="200" max="1000" step="50"></div>
       <div class="row"><label for="s-fHigh">Верхняя частота (верх картинки)</label><output data-for="fHigh"></output>
@@ -202,6 +216,7 @@ kbd{font:12px ui-monospace,monospace;border:1px solid var(--line);border-radius:
     <div class="body prose">
       <p>Фигура переводится в звук по принципу сенсорного замещения: картинка <b>сканируется слева направо</b> (время = горизонталь), <b>высота точки задаёт высоту тона</b> (верх — высокий, низ — низкий, экспоненциальная шкала), <b>яркость — громкость</b>. В стерео звук смещается из левого уха в правое по ходу скана.</p>
       <p>Горизонтальная линия звучит как ровный тон, диагональ ↗ — как восходящий глиссандо, вертикальная — как короткий «аккорд-щелчок», круг — как расходящаяся и сходящаяся пара тонов.</p>
+      <p><b>Буквы и слова:</b> отдельный режим со своей шкалой — от букв из одних прямых до слов из 8–10 букв. Для слов окно вытягивается по длине слова, а скан по умолчанию удлиняется так, чтобы на каждую букву приходилось одинаковое время (это можно выключить в настройках).</p>
       <p><b>Цикл:</b> выберите уровень → «Начать» → за время отсчёта закройте глаза → слушайте сканы и стройте образ → двойной сигнал «откройте глаза» → сравните с фигурой, отметьте результат → «Далее».</p>
       <p>Лучше в наушниках. На iPhone, если звука нет, выключите беззвучный режим. Клавиши: <kbd>Пробел</kbd> — начать / далее, <kbd>R</kbd> — повтор, <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> — оценка, <kbd>Esc</kbd> — стоп.</p>
       <p>Метод преобразования описан Peter B. L. Meijer (The vOICe, seeingwithsound.com); здесь — независимая реализация на Web Audio. Статистика хранится только в этом браузере.</p>
@@ -398,13 +413,47 @@ function generate(level) {
   }
   return { name: names.join(' + '), strokes };
 }
+
+// ---------- буквы и слова ----------
+const LET_STRAIGHT = 'ГТПНЕШ'.split('');
+const LET_DIAG = 'АИКЛМХЖДУЙ'.split('');
+const LET_ROUND = 'ОСЭРБВЗЮЯФЧЬЫЩЦ'.split('');
+const SYLLABLES = 'ДА НО ТЫ МЫ ВЫ ОН УМ ЮГ ДО ПО ЗА НА ОТ ИЗ ИЛ ОМ ЯД МА ПА ТО КА РА ЛИ НУ СО МИ ЛО ДЕ БЫ ВО'.split(' ');
+const WORDS = (
+  'ДОМ КОТ ЛЕС СОК НОС РОТ МИР ЛУК ДУБ СЫР ЧАЙ ЖУК ШАР ЛЕВ МАК БОР ГОД ДЫМ ЗУБ КИТ КОД МЯЧ НОЖ ПОЛ ПУХ РАК РИС СОН СУП ТОК УХО ЯМА ОСА ИВА ЕЛЬ ЛУЧ ВЕС ЛАК ЖАР ЛОБ МЕЛ ПАР ТАЗ ФЕН ХОР ШУМ ЩИТ ' +
+  'ЛИСА РЫБА ЛУНА ЗИМА КОЗА НОГА РУКА ВОДА ГОРА МАМА ПАПА СОВА ТОРТ ЛИФТ ДЕНЬ ТИГР КРАН МОСТ ПОЛЕ МОРЕ НЕБО СЛОН ВОЛК ЗАЯЦ КОНЬ СНЕГ ЛЕТО ОКНО СТОЛ СТУЛ ШКАФ ЧАСЫ ХЛЕБ СОЛЬ ЗВУК ГЛАЗ МОЗГ НЕРВ МАЯК ЛАПА ЖИРАФ ' +
+  'КНИГА РУЧКА ЛОЖКА ВИЛКА ЧАШКА МЫШКА ПТИЦА РЕЧКА ВЕТЕР БЕРЕГ ПОЕЗД ВЕТКА ДОСКА КОШКА ГРУША ВИШНЯ ЛИМОН АРБУЗ ТЫКВА КАПЛЯ ВОЛНА ГОЛОС РАДИО КАРТА ПАРУС ЯКОРЬ ЛАМПА ДВЕРЬ ДОЖДЬ ОКЕАН ТЕАТР ' +
+  'СОЛНЦЕ ОБЛАКО ЗВЕЗДА СОБАКА ЛОШАДЬ ЯБЛОКО НЕЙРОН СИНАПС МУЗЫКА ЗВОНОК КОМПАС ДЕРЕВО ГОЛУБЬ МОЛОКО МАШИНА РАКЕТА ОСТРОВ ВУЛКАН ПАМЯТЬ ' +
+  'ПЛАНЕТА КАРТИНА ЗЕРКАЛО ВОРОБЕЙ КОРАБЛЬ ТРАМВАЙ ПОДУШКА ТЕЛЕФОН КОРТЕКС АВТОБУС ПАРОВОЗ ' +
+  'ЛАБИРИНТ ВНИМАНИЕ МОЗЖЕЧОК ЧЕРЕПАХА ДИНОЗАВР КРОКОДИЛ АПЕЛЬСИН ШОКОЛАД КАРАНДАШ СНЕЖИНКА МЕТРОНОМ ГОРИЗОНТ ' +
+  'ГИППОКАМП ВЕЛОСИПЕД КОМПЬЮТЕР ПОДСОЛНУХ ТЕЛЕВИЗОР ВОСПРИЯТИЕ МАГНИТОФОН'
+).split(' ');
+const byLen = (a, b) => WORDS.filter(w => w.length >= a && w.length <= b);
+
+const LEVELS_W = [
+  { name: 'Простые буквы', desc: 'Буквы только из прямых линий: Г, Т, П, Н, Е, Ш.', pool: () => LET_STRAIGHT },
+  { name: 'Буквы с диагоналями', desc: 'А, И, К, Л, М, Х, Ж, Д, У, Й — наклонные штрихи.', pool: () => LET_DIAG },
+  { name: 'Округлые буквы', desc: 'О, С, Э, Р, Б, В, З, Ю, Я, Ф и др. — дуги и петли.', pool: () => LET_ROUND },
+  { name: 'Любая буква', desc: 'Весь алфавит вперемешку.', pool: () => [...LET_STRAIGHT, ...LET_DIAG, ...LET_ROUND, 'Г', 'Ъ', 'Е'] },
+  { name: 'Две буквы', desc: 'Короткие слова и слоги из двух букв: ДА, МЫ, КА…', pool: () => SYLLABLES },
+  { name: 'Слова: 3 буквы', desc: 'ДОМ, КОТ, ЛЕС…', pool: () => byLen(3, 3) },
+  { name: 'Слова: 4 буквы', desc: 'ЛИСА, МОСТ, СНЕГ…', pool: () => byLen(4, 4) },
+  { name: 'Слова: 5 букв', desc: 'КНИГА, ВЕТЕР, ЛАМПА…', pool: () => byLen(5, 5) },
+  { name: 'Слова: 6–7 букв', desc: 'НЕЙРОН, ПЛАНЕТА, КОРТЕКС…', pool: () => byLen(6, 7) },
+  { name: 'Длинные слова', desc: '8–10 букв: ЛАБИРИНТ, ГИППОКАМП, ВОСПРИЯТИЕ…', pool: () => byLen(8, 10) },
+];
+function generateWord(level, lower) {
+  const w = pick(LEVELS_W[level - 1].pool());
+  const text = lower ? w.toLowerCase() : w;
+  return { kind: 'word', name: text, text };
+}
 // ==END GEOMETRY==
 
 // ---------- storage / settings ----------
 const $ = s => document.querySelector(s);
 function load(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
 function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } }
-const DEF = { level: 1, duration: 1, repeats: 3, gap: 0.3, countdown: 3, volume: 0.8, showDuring: true, showName: true, pixel: false, stereo: true, click: false, fLow: 500, fHigh: 5000 };
+const DEF = { mode: 'shape', level: 1, levelW: 1, lower: false, stretch: true, duration: 1, repeats: 3, gap: 0.3, countdown: 3, volume: 0.8, showDuring: true, showName: true, pixel: false, stereo: true, click: false, fLow: 500, fHigh: 5000 };
 const settings = Object.assign({}, DEF, load('plt.settings', {}));
 let history = load('plt.history', []); if (!Array.isArray(history)) history = [];
 
@@ -423,14 +472,38 @@ function drawStrokes(g, strokes, size, color, lw) {
   }
   g.restore();
 }
+const WORD_FONT = '700 50px "Arial", "Helvetica Neue", Helvetica, "Liberation Sans", Roboto, sans-serif';
+const LETTER_GAP = 7, WORD_PAD = 8;
+let measureCtx = null;
+// Раскладка слова в координатах сетки: высота 64, ширина по длине слова
+function layoutWord(sh) {
+  measureCtx = measureCtx || document.createElement('canvas').getContext('2d');
+  const g = measureCtx; g.font = WORD_FONT;
+  const chars = [...sh.text], widths = chars.map(ch => g.measureText(ch).width);
+  const total = widths.reduce((a, b) => a + b, 0) + LETTER_GAP * (chars.length - 1);
+  const W = Math.max(GH, Math.ceil(total + 2 * WORD_PAD));
+  const m = g.measureText(sh.text.toUpperCase() === sh.text ? 'НДЩ' : 'нд');
+  const asc = m.actualBoundingBoxAscent || 36, desc = m.actualBoundingBoxDescent || 0;
+  let x = (W - total) / 2; const pos = [];
+  chars.forEach((ch, i) => { pos.push([ch, x]); x += widths[i] + LETTER_GAP; });
+  sh.W = W; sh.pos = pos; sh.baseY = GH / 2 + (asc - desc) / 2;
+}
+function drawWord(g, sh, color) {
+  g.save(); g.font = WORD_FONT; g.fillStyle = color; g.textBaseline = 'alphabetic';
+  for (const [ch, x] of sh.pos) g.fillText(ch, x, sh.baseY);
+  g.restore();
+}
 function rasterGrid(shape) {
-  const c = document.createElement('canvas'); c.width = GW; c.height = GH;
+  if (shape.kind === 'word' && !shape.W) layoutWord(shape);
+  const W = shape.kind === 'word' ? shape.W : GW;
+  const c = document.createElement('canvas'); c.width = W; c.height = GH;
   const g = c.getContext('2d', { willReadFrequently: true });
-  g.fillStyle = '#000'; g.fillRect(0, 0, GW, GH);
-  drawStrokes(g, shape.strokes, GW, '#fff', LINE * GW);
-  const d = g.getImageData(0, 0, GW, GH).data, img = new Float32Array(GW * GH);
-  for (let i = 0; i < GW * GH; i++) { const v = d[i * 4] / 255; img[i] = v < 0.04 ? 0 : v; }
-  return { canvas: c, img };
+  g.fillStyle = '#000'; g.fillRect(0, 0, W, GH);
+  if (shape.kind === 'word') drawWord(g, shape, '#fff');
+  else drawStrokes(g, shape.strokes, GW, '#fff', LINE * GW);
+  const d = g.getImageData(0, 0, W, GH).data, img = new Float32Array(W * GH);
+  for (let i = 0; i < W * GH; i++) { const v = d[i * 4] / 255; img[i] = v < 0.04 ? 0 : v; }
+  return { canvas: c, img, W };
 }
 
 // ---------- audio ----------
@@ -465,8 +538,9 @@ function beep(t, f, dur, vol = 0.3, type = 'sine') {
 function stopAudio() { for (const n of nodes) { try { n.stop(); } catch (e) { } } nodes = []; }
 
 // image → sound: columns = time (left→right), rows = exponential pitch (top = high), brightness = loudness
-function synthBuffer(img) {
-  const sr = actx.sampleRate, N = Math.max(1, Math.floor(settings.duration * sr)), spc = N / GW;
+function scanDuration(W) { return settings.duration * (settings.stretch && W > GW ? W / GW : 1); }
+function synthBuffer(img, GW) {
+  const sr = actx.sampleRate, N = Math.max(1, Math.floor(scanDuration(GW) * sr)), spc = N / GW;
   const fl = settings.fLow, fh = Math.max(settings.fHigh, fl * 1.5);
   const mono = new Float32Array(N), ci = new Int16Array(N), fr = new Float32Array(N);
   for (let i = 0; i < N; i++) { let c = (i + 0.5) / spc - 0.5; c = clamp(c, 0, GW - 1); const k = Math.min(Math.floor(c), GW - 2); ci[i] = k; fr[i] = c - k; }
@@ -492,21 +566,25 @@ function synthBuffer(img) {
   }
   return buf;
 }
-const bufKey = () => [settings.duration, settings.fLow, settings.fHigh, settings.stereo, actx.sampleRate].join('|');
+const bufKey = () => [settings.duration, settings.stretch, settings.fLow, settings.fHigh, settings.stereo, actx.sampleRate].join('|');
 
 // ---------- state ----------
 let phase = 'idle';        // idle | countdown | scan | post | review
 let mode = 'train';        // train | demo
 let trial = null, tl = null, raf = 0, wakeLock = null;
 
+const isWord = () => settings.mode === 'word';
+const curLevel = () => isWord() ? settings.levelW : settings.level;
+const curLevels = () => isWord() ? LEVELS_W : LEVELS;
 function makeTrial(level, demo) {
+  const gen = () => isWord() ? generateWord(level, settings.lower) : generate(level);
   let sh, tries = 0;
-  do { sh = generate(level); } while (trial && sh.name === trial.shape.name && ++tries < 8);
-  return { level, demo, shape: sh, grid: rasterGrid(sh), buf: null, key: '', rec: null };
+  do { sh = gen(); } while (trial && sh.name === trial.shape.name && ++tries < 8);
+  return { mode: settings.mode, level, demo, shape: sh, grid: rasterGrid(sh), buf: null, key: '', rec: null };
 }
 function ensureBuffer() {
   const k = bufKey();
-  if (!trial.buf || trial.key !== k) { trial.buf = synthBuffer(trial.grid.img); trial.key = k; }
+  if (!trial.buf || trial.key !== k) { trial.buf = synthBuffer(trial.grid.img, trial.grid.W); trial.key = k; }
 }
 async function wake(on) {
   try {
@@ -518,7 +596,8 @@ async function wake(on) {
 function start(m) {
   ensureAudio();
   mode = m;
-  trial = makeTrial(settings.level, m === 'demo');
+  trial = makeTrial(curLevel(), m === 'demo');
+  fitStage();
   play(m === 'train', 'idle');
   wake(true);
 }
@@ -561,7 +640,7 @@ function tick() {
 }
 function enterReview() {
   if (!trial.demo && !trial.rec) {
-    trial.rec = { t: Date.now(), level: trial.level, shape: trial.shape.name, rating: null, dur: settings.duration, reps: Math.round(settings.repeats) };
+    trial.rec = { t: Date.now(), mode: trial.mode, level: trial.level, shape: trial.shape.name, rating: null, dur: settings.duration, reps: Math.round(settings.repeats) };
     history.push(trial.rec);
     if (history.length > 5000) history.splice(0, history.length - 5000);
     save('plt.history', history); renderStats();
@@ -572,9 +651,9 @@ function stop() {
   stopAudio(); cancelAnimationFrame(raf);
   const to = tl ? tl.stopTo : 'idle'; tl = null;
   if (to === 'review' && trial) { setPhase('review'); drawStage(null); }
-  else { trial = null; setPhase('idle'); wake(false); drawStage(null); }
+  else { trial = null; setPhase('idle'); wake(false); fitStage(); drawStage(null); }
 }
-function endSession() { stopAudio(); tl = null; trial = null; setPhase('idle'); wake(false); drawStage(null); }
+function endSession() { stopAudio(); tl = null; trial = null; setPhase('idle'); wake(false); fitStage(); drawStage(null); }
 function next() { start(mode); }
 function replay() { if (!trial) return; ensureAudio(); play(false, 'review'); }
 function rate(r) {
@@ -598,6 +677,7 @@ function updateUI() {
   $('#actRun').classList.toggle('hidden', !playing);
   $('#actReview').classList.toggle('hidden', phase !== 'review');
   $('#level').disabled = playing;
+  document.querySelectorAll('.seg-btn').forEach(b => { b.disabled = playing; b.setAttribute('aria-checked', String(b.dataset.mode === settings.mode)); });
   $('#rateBox').classList.toggle('hidden', !trial || trial.demo);
   $('#btnNext').textContent = mode === 'demo' ? 'Следующая (демо) →' : 'Далее →';
   document.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', String(!!(trial && trial.rec && trial.rec.rating === c.dataset.r))));
@@ -614,65 +694,84 @@ function updateUI() {
   if (phase === 'idle') setText(st, 'Выберите сложность. Отсчёт → закрыть глаза → слушать → открыть и сравнить.');
   else if (phase === 'countdown') setText(st, 'Приготовьтесь…');
   else if (phase === 'post') setText(st, tl && tl.eyes ? 'Откройте глаза' : '');
-  else if (phase === 'review') setText(st, trial && trial.demo ? 'Так звучит эта фигура. Можно прослушать ещё раз.' : 'Сравните представленный образ с фигурой');
+  const wide = stage.classList.contains('wide'), what = trial && trial.shape.kind === 'word' ? (trial.shape.text.length > 1 ? 'это слово' : 'эта буква') : 'эта фигура';
+  const showName = figureVisible() && settings.showName && (phase === 'review' || (tl && !tl.eyes));
+  if (phase === 'review') {
+    let msg = trial && trial.demo ? `Так звучит ${what}. Можно прослушать ещё раз.` : 'Сравните представленный образ с тем, что на экране';
+    if (wide && showName) msg = `«${trial.shape.name}» · ` + msg;
+    setText(st, msg);
+  }
 
-  const tag = $('#tag'), showTag = figureVisible() && settings.showName && (phase === 'review' || (tl && !tl.eyes));
+  const tag = $('#tag');
   if (trial) setText(tag, trial.shape.name);
-  tag.classList.toggle('show', !!showTag);
+  tag.classList.toggle('show', !!(showName && !wide));
 }
 function drawStage(progress) {
-  const Sz = cv.width; if (!Sz) return;
+  const Wp = cv.width, Hp = cv.height; if (!Wp || !Hp) return;
   const g = ctx;
-  g.fillStyle = '#000'; g.fillRect(0, 0, Sz, Sz);
-  g.strokeStyle = 'rgba(255,255,255,0.05)'; g.lineWidth = Math.max(1, Sz / 600); g.beginPath();
-  for (const f of [0.25, 0.5, 0.75]) { g.moveTo(f * Sz, 0); g.lineTo(f * Sz, Sz); g.moveTo(0, f * Sz); g.lineTo(Sz, f * Sz); }
+  g.fillStyle = '#000'; g.fillRect(0, 0, Wp, Hp);
+  g.strokeStyle = 'rgba(255,255,255,0.05)'; g.lineWidth = Math.max(1, Hp / 600); g.beginPath();
+  for (const f of [0.25, 0.5, 0.75]) { g.moveTo(f * Wp, 0); g.lineTo(f * Wp, Hp); g.moveTo(0, f * Hp); g.lineTo(Wp, f * Hp); }
   g.stroke();
   if (figureVisible()) {
-    if (settings.pixel) { g.imageSmoothingEnabled = false; g.drawImage(trial.grid.canvas, 0, 0, Sz, Sz); }
-    else drawStrokes(g, trial.shape.strokes, Sz, '#f2f5f8', LINE * Sz);
+    if (settings.pixel) { g.imageSmoothingEnabled = false; g.drawImage(trial.grid.canvas, 0, 0, Wp, Hp); }
+    else if (trial.shape.kind === 'word') { g.save(); g.scale(Wp / trial.grid.W, Hp / GH); drawWord(g, trial.shape, '#f2f5f8'); g.restore(); }
+    else drawStrokes(g, trial.shape.strokes, Hp, '#f2f5f8', LINE * Hp);
   }
   if (progress != null) {
-    const x = progress * Sz, tw = Sz * 0.14, gr = g.createLinearGradient(x - tw, 0, x, 0);
+    const x = progress * Wp, tw = Hp * 0.14, gr = g.createLinearGradient(x - tw, 0, x, 0);
     gr.addColorStop(0, 'rgba(79,209,197,0)'); gr.addColorStop(1, 'rgba(79,209,197,0.28)');
-    g.fillStyle = gr; g.fillRect(x - tw, 0, tw, Sz);
-    const lw = Math.max(2, Sz / 220); g.fillStyle = '#4fd1c5'; g.fillRect(x - lw / 2, 0, lw, Sz);
+    g.fillStyle = gr; g.fillRect(x - tw, 0, tw, Hp);
+    const lw = Math.max(2, Hp / 220); g.fillStyle = '#4fd1c5'; g.fillRect(x - lw / 2, 0, lw, Hp);
   }
 }
+// окно: квадрат для фигур и букв, вытянутое по длине слова для слов
+function fitStage() {
+  const W = trial && trial.grid ? trial.grid.W : GW, wide = W > GW;
+  stage.classList.toggle('wide', wide);
+  stage.style.aspectRatio = wide ? `${W} / ${GH}` : '';
+  resize();
+}
 function resize() {
-  const r = stage.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 3), px = Math.round(r.width * dpr);
-  if (px && cv.width !== px) { cv.width = px; cv.height = px; }
+  const r = stage.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 3);
+  const pw = Math.round(r.width * dpr), ph = Math.round(r.height * dpr);
+  if (pw && ph && (cv.width !== pw || cv.height !== ph)) { cv.width = pw; cv.height = ph; }
   if (!tl) drawStage(null);
 }
 
 function renderLevel() {
-  const L = LEVELS[settings.level - 1];
-  $('#level').value = settings.level;
-  $('#levelOut').textContent = `${settings.level} · ${L.name}`;
+  const lvl = curLevel(), L = curLevels()[lvl - 1];
+  $('#level').value = lvl;
+  $('#levelOut').textContent = `${lvl} · ${L.name}`;
   $('#levelDesc').textContent = L.desc;
-  renderStats();
+  updateUI(); renderStats();
 }
 const pct = (a, b) => b ? Math.round(100 * a / b) + '%' : '—';
+const recMode = h => h.mode === 'word' ? 'word' : 'shape';
+const levelName = (m, l) => ((m === 'word' ? LEVELS_W : LEVELS)[l - 1] || { name: '?' }).name;
 function aggregate() {
   const by = {};
   for (const h of history) {
-    const s = by[h.level] || (by[h.level] = { n: 0, match: 0, partial: 0, miss: 0, rated: 0 });
+    const key = recMode(h) + ':' + h.level;
+    const s = by[key] || (by[key] = { mode: recMode(h), level: h.level, n: 0, match: 0, partial: 0, miss: 0, rated: 0 });
     s.n++; if (h.rating) { s[h.rating]++; s.rated++; }
   }
   return by;
 }
 function renderStats() {
-  const by = aggregate(), s = by[settings.level];
-  $('#mini').textContent = s ? `Уровень ${settings.level}: попыток ${s.n} · совпало ${pct(s.match, s.rated)} · частично ${pct(s.partial, s.rated)}` : `Уровень ${settings.level}: попыток пока нет`;
-  const lv = Object.keys(by).map(Number).sort((a, b) => a - b);
-  if (!lv.length) { $('#statsTable').innerHTML = '<p class="mini">Пока нет данных.</p>'; return; }
-  let html = '<table><thead><tr><th>Уровень</th><th>Попыток</th><th>Совпало</th><th>Частично</th><th>Нет</th></tr></thead><tbody>';
-  for (const l of lv) { const x = by[l]; html += `<tr><td>${l} · ${LEVELS[l - 1].name}</td><td>${x.n}</td><td>${pct(x.match, x.rated)}</td><td>${pct(x.partial, x.rated)}</td><td>${pct(x.miss, x.rated)}</td></tr>`; }
+  const by = aggregate(), lvl = curLevel(), s = by[settings.mode + ':' + lvl];
+  const lab = isWord() ? 'Слова, уровень' : 'Фигуры, уровень';
+  $('#mini').textContent = s ? `${lab} ${lvl}: попыток ${s.n} · совпало ${pct(s.match, s.rated)} · частично ${pct(s.partial, s.rated)}` : `${lab} ${lvl}: попыток пока нет`;
+  const rows = Object.values(by).sort((a, b) => (a.mode === b.mode ? a.level - b.level : a.mode === 'shape' ? -1 : 1));
+  if (!rows.length) { $('#statsTable').innerHTML = '<p class="mini">Пока нет данных.</p>'; return; }
+  let html = '<table><thead><tr><th>Режим · уровень</th><th>Попыток</th><th>Совпало</th><th>Частично</th><th>Нет</th></tr></thead><tbody>';
+  for (const x of rows) html += `<tr><td>${x.mode === 'word' ? 'Слова' : 'Фигуры'} ${x.level} · ${levelName(x.mode, x.level)}</td><td>${x.n}</td><td>${pct(x.match, x.rated)}</td><td>${pct(x.partial, x.rated)}</td><td>${pct(x.miss, x.rated)}</td></tr>`;
   $('#statsTable').innerHTML = html + '</tbody></table>';
 }
 function exportCsv() {
   const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-  const rows = [['time', 'level', 'level_name', 'shape', 'rating', 'scan_s', 'repeats'].join(',')];
-  for (const h of history) rows.push([new Date(h.t).toISOString(), h.level, q(LEVELS[h.level - 1].name), q(h.shape), h.rating || '', h.dur, h.reps].join(','));
+  const rows = [['time', 'mode', 'level', 'level_name', 'stimulus', 'rating', 'scan_s', 'repeats'].join(',')];
+  for (const h of history) rows.push([new Date(h.t).toISOString(), recMode(h), h.level, q(levelName(recMode(h), h.level)), q(h.shape), h.rating || '', h.dur, h.reps].join(','));
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob(['\ufeff' + rows.join('\n')], { type: 'text/csv;charset=utf-8' }));
   a.download = `plt-${new Date().toISOString().slice(0, 10)}.csv`;
@@ -699,7 +798,17 @@ function onSetting(k) {
 }
 
 // ---------- events ----------
-$('#level').addEventListener('input', e => { settings.level = parseInt(e.target.value, 10); save('plt.settings', settings); renderLevel(); });
+$('#level').addEventListener('input', e => {
+  const v = parseInt(e.target.value, 10);
+  if (isWord()) settings.levelW = v; else settings.level = v;
+  save('plt.settings', settings); renderLevel();
+});
+document.querySelectorAll('.seg-btn').forEach(b => b.onclick = () => {
+  if (tl || settings.mode === b.dataset.mode) return;
+  settings.mode = b.dataset.mode; save('plt.settings', settings);
+  if (phase === 'review') { trial = null; setPhase('idle'); wake(false); }
+  fitStage(); renderLevel(); drawStage(null);
+});
 $('#btnStart').onclick = () => start('train');
 $('#btnDemo').onclick = () => start('demo');
 $('#btnStop').onclick = stop;
@@ -709,7 +818,7 @@ $('#btnEnd').onclick = endSession;
 document.querySelectorAll('.chip').forEach(c => c.onclick = () => rate(c.dataset.r));
 $('#btnCsv').onclick = exportCsv;
 $('#btnReset').onclick = () => { if (confirm('Удалить всю статистику?')) { history = []; save('plt.history', history); renderStats(); } };
-$('#btnDefaults').onclick = () => { const lvl = settings.level; Object.assign(settings, DEF, { level: lvl }); save('plt.settings', settings); bindSettings(); onSetting('volume'); };
+$('#btnDefaults').onclick = () => { const keep = { mode: settings.mode, level: settings.level, levelW: settings.levelW }; Object.assign(settings, DEF, keep); save('plt.settings', settings); bindSettings(); onSetting('volume'); };
 
 document.addEventListener('keydown', e => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -729,7 +838,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 
 if ('ResizeObserver' in window) new ResizeObserver(resize).observe(stage); else window.addEventListener('resize', resize);
 
-bindSettings(); renderLevel(); updateUI(); resize();
+bindSettings(); renderLevel(); fitStage();
 })();
 </script>
 </body>
